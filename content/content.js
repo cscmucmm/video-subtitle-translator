@@ -1,4 +1,4 @@
-// Video Subtitle Translator - Content Script (Fixed)
+// Video Subtitle Translator - Content Script (Enhanced for Bilibili)
 // 支持 YouTube、Bilibili、Netflix、Twitch 字幕自动翻译
 
 (function () {
@@ -33,7 +33,7 @@
     });
   }
 
-  // 监听设置变更 - 修复：确保返回正确的响应
+  // 监听设置变更
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'SETTINGS_UPDATED') {
       const wasEnabled = settings.enabled;
@@ -46,21 +46,20 @@
         destroy();
       }
       
-      // 立即发送响应
       sendResponse({ success: true });
     }
-    // 返回 false 表示同步响应完成，不再等待
     return false;
   });
 
-  // 手动调试接口
+  // 调试接口
   window.sbtInit = init;
   window.sbtDestroy = destroy;
   window.sbtStatus = () => ({ 
     settings, 
     isInitialized, 
     cacheSize: translationCache.size,
-    platform: detectPlatform() 
+    platform: detectPlatform(),
+    subtitleElements: document.querySelectorAll(PLATFORM_CONFIG[detectPlatform()]?.subtitleSelector || '').length
   });
 
   function init() {
@@ -78,13 +77,9 @@
     isInitialized = true;
     console.log(`[SubTranslator] 🎬 初始化完成 - 平台: ${platform}`);
     
-    // 创建翻译显示容器
     createTranslationContainer();
-    
-    // 开始监听字幕
     observeSubtitles(platform);
     
-    // 定期清理缓存
     setInterval(() => {
       if (translationCache.size > 1000) {
         const keys = [...translationCache.keys()].slice(0, 500);
@@ -132,15 +127,22 @@
     console.log('[SubTranslator] 翻译容器已创建');
   }
 
-  // 各平台配置
+  // 各平台配置 - 更新 Bilibili 选择器
   const PLATFORM_CONFIG = {
     youtube: {
       subtitleSelector: '.ytp-caption-segment',
       containerSelector: '.ytp-caption-window-container',
     },
     bilibili: {
-      subtitleSelector: '.bpx-player-subtitle-text, .subtitle-group-text',
-      containerSelector: '.bpx-player-subtitle-wrap',
+      // B站多种字幕选择器
+      subtitleSelector: [
+        '.bpx-player-subtitle-text',
+        '.bpx-player-subtitle-text-wrap',
+        '.subtitle-item-text',
+        '.bilibili-player-video-subtitle-text',
+        '.bpx-player-subtitle-wrap span',
+      ].join(', '),
+      containerSelector: '.bpx-player-subtitle-wrap, .bpx-player-bottom-wrap',
     },
     netflix: {
       subtitleSelector: '.player-timedtext-text-container span',
@@ -160,7 +162,7 @@
     
     observer = new MutationObserver(() => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => processSubtitles(config), 50);
+      debounceTimer = setTimeout(() => processSubtitles(config), 100);
     });
 
     observer.observe(document.body, {
@@ -169,16 +171,30 @@
       characterData: true,
     });
 
-    // 立即检查一次
-    setTimeout(() => processSubtitles(config), 500);
+    // 立即检查
+    setTimeout(() => processSubtitles(config), 1000);
     
-    console.log('[SubTranslator] 开始监听字幕');
+    // 定期检查（B站可能动态加载）
+    const checkInterval = setInterval(() => {
+      if (!isInitialized) {
+        clearInterval(checkInterval);
+        return;
+      }
+      processSubtitles(config);
+    }, 2000);
+    
+    console.log('[SubTranslator] 开始监听字幕，选择器:', config.subtitleSelector);
   }
 
   function processSubtitles(config) {
     const subtitleEls = document.querySelectorAll(config.subtitleSelector);
     
-    if (subtitleEls.length === 0) return;
+    if (subtitleEls.length === 0) {
+      // 没找到字幕元素，隐藏翻译
+      const container = document.getElementById('sbt-translation-container');
+      if (container) container.classList.remove('sbt-visible');
+      return;
+    }
 
     // 合并所有字幕文本
     const text = Array.from(subtitleEls)
@@ -188,6 +204,8 @@
     
     if (!text || text === lastSubtitleText) return;
     lastSubtitleText = text;
+    
+    console.log('[SubTranslator] 检测到字幕:', text.slice(0, 50) + '...');
     
     processTranslation(text);
   }
@@ -209,7 +227,7 @@
       
     } catch (e) {
       console.warn('[SubTranslator] 翻译失败:', e.message);
-      displayTranslation(text, text); // 显示原文
+      displayTranslation(text, text);
     } finally {
       pendingTranslations.delete(key);
     }
@@ -240,10 +258,8 @@
       }
     }
 
-    // 显示容器
     container.classList.add('sbt-visible');
 
-    // 自动隐藏
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       container.classList.remove('sbt-visible');
