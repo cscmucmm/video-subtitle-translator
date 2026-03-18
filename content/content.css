@@ -1,13 +1,64 @@
-/* Video Subtitle Translator - Content Styles */
+/* Video Subtitle Translator - Content Styles (Enhanced) */
 
+/* 固定翻译显示容器 */
+#sbt-translation-container {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  max-width: 80%;
+}
+
+#sbt-translation-container.sbt-visible {
+  opacity: 1;
+}
+
+.sbt-container-inner {
+  background: rgba(0, 0, 0, 0.85);
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.sbt-translated-text {
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.sbt-original-text {
+  color: #aaaaaa;
+  font-size: 14px;
+  line-height: 1.4;
+  margin-top: 6px;
+  opacity: 0.8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* 内联翻译层（备选） */
 .sbt-translation-layer {
   display: block;
   text-align: center;
   margin-top: 4px;
-  padding: 2px 8px;
-  background: rgba(0, 0, 0, 0.75);
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.85);
   border-radius: 4px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .sbt-translated {
@@ -22,22 +73,46 @@
   display: block;
   color: #aaa;
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 4px;
   opacity: 0.8;
 }
 
-/* YouTube 适配 */
-.ytp-caption-segment + .sbt-translation-layer {
-  position: relative;
-  bottom: 0;
+/* YouTube 特定适配 */
+.html5-video-player #sbt-translation-container {
+  bottom: 60px;
 }
 
-/* Bilibili 适配 */
-.bpx-player-subtitle-wrap .sbt-translation-layer {
-  margin-top: 2px;
+/* Bilibili 特定适配 */
+.bpx-player-container #sbt-translation-container {
+  bottom: 50px;
 }
 
-/* Netflix 适配 */
-.player-timedtext-text-container .sbt-translation-layer {
-  margin-top: 4px;
+/* Netflix 特定适配 */
+.watch-video--player-view #sbt-translation-container {
+  bottom: 100px;
+}
+
+/* Twitch 特定适配 */
+.video-player__overlay #sbt-translation-container {
+  bottom: 60px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  #sbt-translation-container {
+    bottom: 60px;
+    max-width: 90%;
+  }
+  
+  .sbt-container-inner {
+    padding: 8px 16px;
+  }
+  
+  .sbt-translated-text {
+    font-size: 14px;
+  }
+  
+  .sbt-original-text {
+    font-size: 12px;
+  }
 }

@@ -6,6 +6,16 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cscmucmm/video-subtitle-translator.git"
-  }
+    "url": "git+https://github.com/cscmucmm/video-subtitle-translator.git"
+  },
+  "main": "generate-icons.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/cscmucmm/video-subtitle-translator/issues"
+  },
+  "homepage": "https://github.com/cscmucmm/video-subtitle-translator#readme"
 }
