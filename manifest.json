@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Video Subtitle Translator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "自动翻译网页视频字幕，支持 YouTube、Bilibili 等主流视频平台",
   "permissions": [
     "activeTab",
@@ -9,10 +9,13 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*.youtube.com/*",
-    "https://*.bilibili.com/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://www.bilibili.com/*",
+    "https://bilibili.com/*",
     "https://*.netflix.com/*",
-    "https://*.twitch.tv/*"
+    "https://www.twitch.tv/*",
+    "https://twitch.tv/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -25,14 +28,17 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.youtube.com/*",
-        "https://*.bilibili.com/*",
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://www.bilibili.com/*",
+        "https://bilibili.com/*",
         "https://*.netflix.com/*",
-        "https://*.twitch.tv/*"
+        "https://www.twitch.tv/*",
+        "https://twitch.tv/*"
       ],
       "js": ["content/content.js"],
       "css": ["content/content.css"],
-      "run_at": "document_idle"
+      "run_at": "document_end"
     }
   ],
   "background": {
