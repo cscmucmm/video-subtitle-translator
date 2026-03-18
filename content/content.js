@@ -1,317 +1,131 @@
-// Video Subtitle Translator - Content Script (Enhanced for Bilibili)
-// 支持 YouTube、Bilibili、Netflix、Twitch 字幕自动翻译
+// Video Subtitle Translator - Content Script (Simple Debug Version)
+console.log('[SubTranslator] 🎬 Content script loaded!');
 
-(function () {
-  'use strict';
-
-  let settings = {
-    enabled: true,
-    targetLang: 'zh-CN',
-    apiKey: '',
-    apiProvider: 'google',
-    showOriginal: true,
-    fontSize: 18,
+// 暴露全局调试函数
+window.sbtStatus = function() {
+  return {
+    loaded: true,
+    url: location.href,
+    platform: detectPlatform()
   };
+};
 
-  let observer = null;
-  let translationCache = new Map();
-  let isInitialized = false;
-  let pendingTranslations = new Set();
-  let lastSubtitleText = '';
-  let hideTimer = null;
-
-  // 立即加载设置并初始化
-  loadSettings();
-
-  function loadSettings() {
-    chrome.storage.sync.get(settings, (stored) => {
-      settings = { ...settings, ...stored };
-      console.log('[SubTranslator] 设置加载完成:', settings);
-      if (settings.enabled) {
-        init();
-      }
-    });
-  }
-
-  // 监听设置变更
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'SETTINGS_UPDATED') {
-      const wasEnabled = settings.enabled;
-      settings = { ...settings, ...msg.settings };
-      console.log('[SubTranslator] 设置已更新:', settings);
-      
-      if (settings.enabled && !wasEnabled) {
-        init();
-      } else if (!settings.enabled && wasEnabled) {
-        destroy();
-      }
-      
-      sendResponse({ success: true });
-    }
-    return false;
+window.sbtTest = function() {
+  console.log('[SubTranslator] 测试翻译...');
+  chrome.runtime.sendMessage({ type: 'TRANSLATE', text: 'Hello World', targetLang: 'zh-CN', provider: 'google' }, (response) => {
+    console.log('[SubTranslator] 翻译结果:', response);
   });
+};
 
-  // 调试接口
-  window.sbtInit = init;
-  window.sbtDestroy = destroy;
-  window.sbtStatus = () => ({ 
-    settings, 
-    isInitialized, 
-    cacheSize: translationCache.size,
-    platform: detectPlatform(),
-    subtitleElements: document.querySelectorAll(PLATFORM_CONFIG[detectPlatform()]?.subtitleSelector || '').length
+function detectPlatform() {
+  const host = location.hostname;
+  if (host.includes('youtube.com')) return 'youtube';
+  if (host.includes('bilibili.com')) return 'bilibili';
+  if (host.includes('netflix.com')) return 'netflix';
+  if (host.includes('twitch.tv')) return 'twitch';
+  return 'unknown';
+}
+
+// 创建翻译显示容器
+function createContainer() {
+  if (document.getElementById('sbt-container')) return;
+  
+  const container = document.createElement('div');
+  container.id = 'sbt-container';
+  container.style.cssText = `
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 18px;
+    z-index: 2147483647;
+    display: none;
+    max-width: 80%;
+    text-align: center;
+    font-family: sans-serif;
+  `;
+  document.body.appendChild(container);
+  console.log('[SubTranslator] 容器已创建');
+}
+
+// 显示翻译
+function showTranslation(text) {
+  let container = document.getElementById('sbt-container');
+  if (!container) {
+    createContainer();
+    container = document.getElementById('sbt-container');
+  }
+  container.textContent = text;
+  container.style.display = 'block';
+  
+  clearTimeout(window._sbtHideTimer);
+  window._sbtHideTimer = setTimeout(() => {
+    container.style.display = 'none';
+  }, 3000);
+}
+
+// 监听字幕 (YouTube)
+function observeYouTube() {
+  console.log('[SubTranslator] 开始监听 YouTube 字幕...');
+  
+  const observer = new MutationObserver(() => {
+    const captions = document.querySelectorAll('.ytp-caption-segment');
+    if (captions.length > 0) {
+      const text = Array.from(captions).map(c => c.textContent).join(' ').trim();
+      if (text && text !== window._lastText) {
+        window._lastText = text;
+        console.log('[SubTranslator] 检测到字幕:', text);
+        translateAndShow(text);
+      }
+    }
   });
+  
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+}
 
-  function init() {
-    if (isInitialized) {
-      console.log('[SubTranslator] 已初始化，跳过');
-      return;
-    }
-
-    const platform = detectPlatform();
-    if (!platform) {
-      console.log('[SubTranslator] 未检测到支持的平台');
-      return;
-    }
-
-    isInitialized = true;
-    console.log(`[SubTranslator] 🎬 初始化完成 - 平台: ${platform}`);
-    
-    createTranslationContainer();
-    observeSubtitles(platform);
-    
-    setInterval(() => {
-      if (translationCache.size > 1000) {
-        const keys = [...translationCache.keys()].slice(0, 500);
-        keys.forEach(k => translationCache.delete(k));
-      }
-    }, 60000);
-  }
-
-  function destroy() {
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-    isInitialized = false;
-    
-    const container = document.getElementById('sbt-translation-container');
-    if (container) container.remove();
-    
-    document.querySelectorAll('.sbt-translation-layer').forEach(el => el.remove());
-    
-    console.log('[SubTranslator] 已销毁');
-  }
-
-  function detectPlatform() {
-    const host = location.hostname;
-    if (host.includes('youtube.com')) return 'youtube';
-    if (host.includes('bilibili.com')) return 'bilibili';
-    if (host.includes('netflix.com')) return 'netflix';
-    if (host.includes('twitch.tv')) return 'twitch';
-    return null;
-  }
-
-  function createTranslationContainer() {
-    if (document.getElementById('sbt-translation-container')) return;
-    
-    const container = document.createElement('div');
-    container.id = 'sbt-translation-container';
-    container.innerHTML = `
-      <div class="sbt-container-inner">
-        <div class="sbt-translated-text"></div>
-        <div class="sbt-original-text"></div>
-      </div>
-    `;
-    document.body.appendChild(container);
-    console.log('[SubTranslator] 翻译容器已创建');
-  }
-
-  // 各平台配置 - 更新 Bilibili 选择器
-  const PLATFORM_CONFIG = {
-    youtube: {
-      subtitleSelector: '.ytp-caption-segment',
-      containerSelector: '.ytp-caption-window-container',
-    },
-    bilibili: {
-      // B站多种字幕选择器
-      subtitleSelector: [
-        '.bpx-player-subtitle-text',
-        '.bpx-player-subtitle-text-wrap',
-        '.subtitle-item-text',
-        '.bilibili-player-video-subtitle-text',
-        '.bpx-player-subtitle-wrap span',
-      ].join(', '),
-      containerSelector: '.bpx-player-subtitle-wrap, .bpx-player-bottom-wrap',
-    },
-    netflix: {
-      subtitleSelector: '.player-timedtext-text-container span',
-      containerSelector: '.player-timedtext',
-    },
-    twitch: {
-      subtitleSelector: '.video-player__content .caption-window span',
-      containerSelector: '.video-player__content',
-    },
-  };
-
-  function observeSubtitles(platform) {
-    const config = PLATFORM_CONFIG[platform];
-    if (!config) return;
-
-    let debounceTimer = null;
-    
-    observer = new MutationObserver(() => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => processSubtitles(config), 100);
+// 翻译并显示
+async function translateAndShow(text) {
+  try {
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: 'TRANSLATE', text, targetLang: 'zh-CN', provider: 'google' },
+        (res) => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(res);
+        }
+      );
     });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-
-    // 立即检查
-    setTimeout(() => processSubtitles(config), 1000);
     
-    // 定期检查（B站可能动态加载）
-    const checkInterval = setInterval(() => {
-      if (!isInitialized) {
-        clearInterval(checkInterval);
-        return;
-      }
-      processSubtitles(config);
-    }, 2000);
-    
-    console.log('[SubTranslator] 开始监听字幕，选择器:', config.subtitleSelector);
-  }
-
-  function processSubtitles(config) {
-    const subtitleEls = document.querySelectorAll(config.subtitleSelector);
-    
-    if (subtitleEls.length === 0) {
-      // 没找到字幕元素，隐藏翻译
-      const container = document.getElementById('sbt-translation-container');
-      if (container) container.classList.remove('sbt-visible');
-      return;
+    if (response?.translated) {
+      console.log('[SubTranslator] 翻译结果:', response.translated);
+      showTranslation(response.translated);
     }
-
-    // 合并所有字幕文本
-    const text = Array.from(subtitleEls)
-      .map(el => el.textContent?.trim())
-      .filter(t => t)
-      .join(' ');
-    
-    if (!text || text === lastSubtitleText) return;
-    lastSubtitleText = text;
-    
-    console.log('[SubTranslator] 检测到字幕:', text.slice(0, 50) + '...');
-    
-    processTranslation(text);
+  } catch (e) {
+    console.error('[SubTranslator] 翻译失败:', e.message);
+    showTranslation(text); // 显示原文
   }
+}
 
-  async function processTranslation(text) {
-    const key = text.slice(0, 50);
-    if (pendingTranslations.has(key)) return;
-    pendingTranslations.add(key);
-
-    try {
-      let translated = translationCache.get(text);
-      
-      if (!translated) {
-        translated = await translateText(text);
-        translationCache.set(text, translated);
-      }
-
-      displayTranslation(translated, text);
-      
-    } catch (e) {
-      console.warn('[SubTranslator] 翻译失败:', e.message);
-      displayTranslation(text, text);
-    } finally {
-      pendingTranslations.delete(key);
-    }
-  }
-
-  function displayTranslation(translated, original) {
-    let container = document.getElementById('sbt-translation-container');
-    if (!container) {
-      createTranslationContainer();
-      container = document.getElementById('sbt-translation-container');
-    }
-
-    const translatedEl = container.querySelector('.sbt-translated-text');
-    const originalEl = container.querySelector('.sbt-original-text');
-
-    if (translatedEl) {
-      translatedEl.textContent = translated;
-      translatedEl.style.fontSize = settings.fontSize + 'px';
-    }
-
-    if (originalEl) {
-      if (settings.showOriginal && original !== translated) {
-        originalEl.textContent = original;
-        originalEl.style.fontSize = (settings.fontSize - 4) + 'px';
-        originalEl.style.display = 'block';
-      } else {
-        originalEl.style.display = 'none';
-      }
-    }
-
-    container.classList.add('sbt-visible');
-
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      container.classList.remove('sbt-visible');
-      lastSubtitleText = '';
-    }, 4000);
-  }
-
-  async function translateText(text) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('翻译超时'));
-      }, 5000);
-
-      try {
-        chrome.runtime.sendMessage(
-          { 
-            type: 'TRANSLATE', 
-            text, 
-            targetLang: settings.targetLang, 
-            provider: settings.apiProvider, 
-            apiKey: settings.apiKey 
-          },
-          (response) => {
-            clearTimeout(timeout);
-            
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-              return;
-            }
-            
-            if (response?.error) {
-              reject(new Error(response.error));
-              return;
-            }
-            
-            resolve(response?.translated || text);
-          }
-        );
-      } catch (e) {
-        clearTimeout(timeout);
-        reject(e);
-      }
-    });
-  }
-
-  // 页面加载完成后初始化
-  if (document.readyState === 'complete') {
-    setTimeout(loadSettings, 500);
+// 初始化
+function init() {
+  console.log('[SubTranslator] 初始化...');
+  createContainer();
+  
+  const platform = detectPlatform();
+  if (platform === 'youtube') {
+    observeYouTube();
   } else {
-    window.addEventListener('load', () => {
-      setTimeout(loadSettings, 500);
-    });
+    console.log('[SubTranslator] 平台:', platform, '(暂不支持)');
   }
+}
 
-})();
+// 等待页面加载
+if (document.readyState === 'complete') {
+  setTimeout(init, 500);
+} else {
+  window.addEventListener('load', () => setTimeout(init, 500));
+}
