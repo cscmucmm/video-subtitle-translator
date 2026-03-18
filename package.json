@@ -1,0 +1,11 @@
+{
+  "name": "video-subtitle-translator",
+  "version": "1.0.0",
+  "description": "Chrome extension for automatic video subtitle translation",
+  "author": "cscmucmm",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cscmucmm/video-subtitle-translator.git"
+  }
+}

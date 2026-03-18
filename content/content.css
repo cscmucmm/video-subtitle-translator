@@ -1,0 +1,43 @@
+/* Video Subtitle Translator - Content Styles */
+
+.sbt-translation-layer {
+  display: block;
+  text-align: center;
+  margin-top: 4px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sbt-translated {
+  display: block;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.4;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.sbt-original {
+  display: block;
+  color: #aaa;
+  font-size: 12px;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* YouTube 适配 */
+.ytp-caption-segment + .sbt-translation-layer {
+  position: relative;
+  bottom: 0;
+}
+
+/* Bilibili 适配 */
+.bpx-player-subtitle-wrap .sbt-translation-layer {
+  margin-top: 2px;
+}
+
+/* Netflix 适配 */
+.player-timedtext-text-container .sbt-translation-layer {
+  margin-top: 4px;
+}

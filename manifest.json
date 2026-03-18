@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Video Subtitle Translator",
+  "version": "1.0.0",
+  "description": "自动翻译网页视频字幕，支持 YouTube、Bilibili 等主流视频平台",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.youtube.com/*",
+    "https://*.bilibili.com/*",
+    "https://*.netflix.com/*",
+    "https://*.twitch.tv/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.youtube.com/*",
+        "https://*.bilibili.com/*",
+        "https://*.netflix.com/*",
+        "https://*.twitch.tv/*"
+      ],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
